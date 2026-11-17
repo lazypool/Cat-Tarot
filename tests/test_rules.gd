@@ -353,12 +353,13 @@ func test_roll_cost_tradeoff() -> bool:
 	var cost: Dictionary = gm.get_die_cost(3)
 	check_eq(str(cost["plus"]), "curiosity", "die 3 raises curiosity")
 	check_eq(str(cost["minus"]), "comfort", "die 3 lowers comfort")
-	roll(3)
-	check_eq(int(gm.stats["curiosity"]), 5, "die 3 curiosity +1")
-	check_eq(int(gm.stats["comfort"]), 3, "die 3 comfort -1")
+	gm.debug_set_die(3)
+	roll(1)
+	check_eq(int(gm.stats["curiosity"]), 5, "clicking a die showing 3 raises curiosity")
+	check_eq(int(gm.stats["comfort"]), 3, "clicking a die showing 3 lowers comfort")
 	check_eq(int(gm.stats["passion"]), 4, "die 3 leaves passion")
 	check_eq(int(gm.stats["intuition"]), 4, "die 3 leaves intuition")
-	check_eq(int(gm.die_value), 3, "roll still sets the die")
+	check_eq(int(gm.die_value), 1, "roll still sets the die")
 	check_eq(gm.phase, P_SELECT, "roll cost does not end a safe run")
 	return true
 

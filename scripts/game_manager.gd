@@ -185,13 +185,14 @@ func select_slot(slot: int) -> void:
 func roll_die() -> void:
 	if phase != Phase.SELECT:
 		return
+	var previous_value := die_value
 	die_value = _roll_d6()
 	_apply_die_to_field()
 	_log(Loc.tf("log.die", [die_value]))
 	orientation_rolled.emit(die_value)
 	field_cards_changed.emit(field_cards.duplicate())
 	if roll_cost_enabled:
-		var cost := get_die_cost(die_value)
+		var cost := get_die_cost(previous_value)
 		if _apply_stat_delta(str(cost["plus"]), 1, "roll"):
 			return
 		if _apply_stat_delta(str(cost["minus"]), -1, "roll"):
