@@ -47,7 +47,6 @@ var roll_cost_enabled: bool = true
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var rng_seed: int = 0
 var debug_forced_rolls: Array[int] = []
-var _checking_once: bool = false
 
 
 func new_game(seed_value: int = 0) -> void:
@@ -289,18 +288,15 @@ func replace_mark(old_card_id: int) -> void:
 func _start_accept_queue() -> void:
 	phase = Phase.RESOLVE
 	effect_queue.clear()
-	_check_once_per_run()
-	if phase == Phase.GAME_OVER:
-		return
-	if flow_new_mark_card >= 0:
-		_enqueue_mark_timing(flow_new_mark_card, "on_acquire", true)
 	for mark in marks:
 		if flow_new_mark_card >= 0 and int(mark["card_id"]) == flow_new_mark_card:
 			continue
-		_enqueue_mark_timing(int(mark["card_id"]), "when_accept", false)
+		_enqueue_mark_timing(int(mark["card_id"]), "on_accept")
 	if choices_completed % 3 == 0:
 		for mark in marks:
-			_enqueue_mark_timing(int(mark["card_id"]), "every_3", false)
+			if flow_new_mark_card >= 0 and int(mark["card_id"]) == flow_new_mark_card:
+				continue
+			_enqueue_mark_timing(int(mark["card_id"]), "on_3turn")
 	_process_effect_queue()
 
 
@@ -308,14 +304,14 @@ func _start_refuse_queue() -> void:
 	phase = Phase.RESOLVE
 	effect_queue.clear()
 	for mark in marks:
-		_enqueue_mark_timing(int(mark["card_id"]), "when_refuse", false)
+		_enqueue_mark_timing(int(mark["card_id"]), "on_refuse")
 	if choices_completed % 3 == 0:
 		for mark in marks:
-			_enqueue_mark_timing(int(mark["card_id"]), "every_3", false)
+			_enqueue_mark_timing(int(mark["card_id"]), "on_3turn")
 	_process_effect_queue()
 
 
-func _enqueue_mark_timing(card_id: int, timing: String, only_new: bool) -> void:
+func _enqueue_mark_timing(card_id: int, trigger: String) -> void:
 	var mark_index := _mark_index(card_id)
 	if mark_index < 0:
 		return
@@ -325,14 +321,9 @@ func _enqueue_mark_timing(card_id: int, timing: String, only_new: bool) -> void:
 	var effects: Array = o_data.get("effects", [])
 	for j in effects.size():
 		var effect: Dictionary = effects[j]
-		if str(effect.get("timing", "")) != timing:
+		if str(effect.get("trigger", "")) != trigger:
 			continue
 		effect_queue.append({"mark_index": mark_index, "effect_index": j})
-	_after_enqueue(only_new)
-
-
-func _after_enqueue(_only_new: bool) -> void:
-	pass
 
 
 func _mark_index(card_id: int) -> int:
@@ -366,138 +357,28 @@ func _trigger_effect(job: Dictionary) -> String:
 	if effect_index < 0 or effect_index >= effects.size():
 		return "ok"
 	var effect: Dictionary = effects[effect_index]
-	var limit := int(effect.get("limit", 0))
-	var uses: Dictionary = mark["uses"]
-	var used := int(uses.get(effect_index, 0))
-	if limit > 0 and used >= limit:
-		return "ok"
-	var applied := false
-	var rules: Array = effect.get("rules", [])
-	for rule in rules:
-		var condition = rule.get("condition", null)
-		if condition != null and not _condition_met(condition):
-			continue
-		var actions: Array = rule.get("actions", [])
-		for action in actions:
-			var result := _apply_action(action, card_id, effect_index, mark_index)
-			if result == "death":
-				return "death"
-			if result == "pause":
-				applied = true
-				return "pause"
-			applied = true
-	if applied and limit > 0:
-		uses[effect_index] = used + 1
-		mark["uses"] = uses
-		marks[mark_index] = mark
-		marks_changed.emit(marks.duplicate())
-	if applied:
-		_log(Loc.tf("log.mark_trigger", [Loc.card_name(card_id), Loc.orientation_name(orientation.to_upper())]))
+	var actions: Array = effect.get("actions", [])
+	for action in actions:
+		var result := _apply_action(action, card_id, effect_index, mark_index)
+		if result == "death":
+			return "death"
+	_log(Loc.tf("log.mark_trigger", [Loc.card_name(card_id), Loc.orientation_name(orientation.to_upper())]))
 	return "ok"
 
 
-func _condition_met(condition: Dictionary) -> bool:
-	var t := str(condition.get("type", ""))
-	match t:
-		"is_highest":
-			return _is_extreme(str(condition["stat"]), true)
-		"is_lowest":
-			return _is_extreme(str(condition["stat"]), false)
-		"marks_at_least":
-			return marks.size() >= int(condition["value"])
-		"refusals_at_least":
-			return refusals_total >= int(condition["value"])
-		"any_at_least":
-			return _any_stat_at_least(int(condition["value"]))
-		"none_at_least":
-			return not _any_stat_at_least(int(condition["value"]))
-		"any_at_most":
-			return _any_stat_at_most(int(condition["value"]))
-		"stat_at_most":
-			return int(stats[str(condition["stat"])]) <= int(condition["value"])
-		"stat_at_least":
-			return int(stats[str(condition["stat"])]) >= int(condition["value"])
-	return true
-
-
-func _is_extreme(stat: String, highest: bool) -> bool:
-	var value := int(stats[stat])
-	for key in STAT_KEYS:
-		if key == stat:
-			continue
-		if highest and int(stats[key]) > value:
-			return false
-		if not highest and int(stats[key]) < value:
-			return false
-	return true
-
-
-func _any_stat_at_least(value: int) -> bool:
-	for key in STAT_KEYS:
-		if int(stats[key]) >= value:
-			return true
-	return false
-
-
-func _any_stat_at_most(value: int) -> bool:
-	for key in STAT_KEYS:
-		if int(stats[key]) <= value:
-			return true
-	return false
-
-
-func _apply_action(action: Dictionary, card_id: int, effect_index: int, mark_index: int) -> String:
+func _apply_action(action: Dictionary, _card_id: int, _effect_index: int, _mark_index: int) -> String:
 	var t := str(action.get("type", ""))
 	match t:
 		"stat":
-			var death := _apply_stat_delta(str(action["stat"]), int(action["delta"]), "effect", action.get("floor", null), action.get("cap", null))
+			var death := _apply_stat_delta(str(action["stat"]), int(action["delta"]), "effect")
 			return "death" if death else "ok"
 		"all":
 			for key in STAT_KEYS:
-				var death := _apply_stat_delta(key, int(action["delta"]), "effect", action.get("floor", null), action.get("cap", null))
+				var death := _apply_stat_delta(key, int(action["delta"]), "effect")
 				if death:
 					return "death"
 			return "ok"
-		"shift_extremes":
-			var high := _extreme_stat(true)
-			var low := _extreme_stat(false)
-			var death1 := _apply_stat_delta(high, int(action.get("high_delta", -1)), "effect")
-			if death1:
-				return "death"
-			var death2 := _apply_stat_delta(low, int(action.get("low_delta", 1)), "effect")
-			return "death" if death2 else "ok"
-		"set_all":
-			var target := int(action.get("value", 5))
-			for key in STAT_KEYS:
-				var delta := target - int(stats[key])
-				if delta != 0:
-					var death := _apply_stat_delta(key, delta, "effect")
-					if death:
-						return "death"
-			return "ok"
-		"boost_lowest":
-			var low := _extreme_stat(false)
-			var death := _apply_stat_delta(low, int(action.get("delta", 2)), "effect")
-			return "death" if death else "ok"
-		"set_stat":
-			var delta := int(action.get("value", 5)) - int(stats[str(action["stat"])])
-			var death := _apply_stat_delta(str(action["stat"]), delta, "effect")
-			return "death" if death else "ok"
 	return "ok"
-
-
-func _extreme_stat(highest: bool) -> String:
-	var best := STAT_KEYS[0]
-	var best_value := int(stats[best])
-	for key in STAT_KEYS:
-		var value := int(stats[key])
-		if highest and value > best_value:
-			best = key
-			best_value = value
-		elif not highest and value < best_value:
-			best = key
-			best_value = value
-	return best
 
 
 func _apply_actions(actions: Array, source: String) -> String:
@@ -522,28 +403,10 @@ func _apply_stat_delta(stat: String, delta: int, source: String, floor_value = n
 		return false
 	var old_value := int(stats[stat])
 	var raw := old_value + delta
-	var has_bound := floor_value != null or cap_value != null
 	if floor_value != null:
 		raw = maxi(raw, int(floor_value))
 	if cap_value != null:
 		raw = mini(raw, int(cap_value))
-	if not has_bound and (raw <= 0 or raw >= 10):
-		var emperor_index := _mark_index(4)
-		if emperor_index >= 0:
-			var emperor: Dictionary = marks[emperor_index]
-			var emperor_uses: Dictionary = emperor["uses"]
-			if int(emperor_uses.get("emperor", 0)) < 1:
-				raw = 1 if raw <= 0 else 9
-				emperor_uses["emperor"] = 1
-				emperor["uses"] = emperor_uses
-				marks[emperor_index] = emperor
-				marks_changed.emit(marks.duplicate())
-				_log(Loc.tf("log.emperor_save", [stat, raw]))
-				if str(emperor["orientation"]).to_upper() == ORIENT_REVERSED:
-					var death := _apply_stat_delta("intuition", -1, "emperor_reverse")
-					if death:
-						return true
-					raw = int(stats[stat])
 	stats[stat] = raw
 	if old_value != raw:
 		var delta_text := ("+%d" % delta) if delta > 0 else str(delta)
@@ -551,7 +414,6 @@ func _apply_stat_delta(stat: String, delta: int, source: String, floor_value = n
 	_emit_state()
 	if _check_any_death():
 		return true
-	_check_once_per_run()
 	return phase == Phase.GAME_OVER
 
 
@@ -561,55 +423,6 @@ func _check_any_death() -> bool:
 			_start_death()
 			return true
 	return false
-
-
-func _check_once_per_run() -> void:
-	if phase == Phase.GAME_OVER or _checking_once:
-		return
-	_checking_once = true
-	for i in marks.size():
-		var mark: Dictionary = marks[i]
-		var card_id := int(mark["card_id"])
-		var orientation := str(mark["orientation"]).to_lower()
-		var o_data := CardDatabase.orientation_data(card_id, orientation)
-		var effects: Array = o_data.get("effects", [])
-		for j in effects.size():
-			var effect: Dictionary = effects[j]
-			if str(effect.get("timing", "")) != "once_per_run":
-				continue
-			var limit := int(effect.get("limit", 0))
-			var uses: Dictionary = mark["uses"]
-			if limit > 0 and int(uses.get(j, 0)) >= limit:
-				continue
-			var rules: Array = effect.get("rules", [])
-			var applies := false
-			for rule in rules:
-				var condition = rule.get("condition", null)
-				if condition != null and not _condition_met(condition):
-					continue
-				applies = true
-				break
-			if applies and limit > 0:
-				uses[j] = int(uses.get(j, 0)) + 1
-				mark["uses"] = uses
-				marks[i] = mark
-				marks_changed.emit(marks.duplicate())
-			if not applies:
-				continue
-			for rule in rules:
-				var condition = rule.get("condition", null)
-				if condition != null and not _condition_met(condition):
-					continue
-				var actions: Array = rule.get("actions", [])
-				for action in actions:
-					var result := _apply_action(action, card_id, j, i)
-					if result == "death":
-						_checking_once = false
-						return
-					if result == "pause":
-						_checking_once = false
-						return
-	_checking_once = false
 
 
 func _start_death() -> void:
@@ -660,23 +473,8 @@ func _enter_final_end() -> void:
 	_emit_state()
 
 
-func get_mark_remaining(mark: Dictionary) -> String:
-	var card_id := int(mark["card_id"])
-	if card_id == 4:
-		var emperor_uses: Dictionary = mark.get("uses", {})
-		return "%d/1" % maxi(0, 1 - int(emperor_uses.get("emperor", 0)))
-	var orientation := str(mark["orientation"]).to_lower()
-	var o_data := CardDatabase.orientation_data(card_id, orientation)
-	var effects: Array = o_data.get("effects", [])
-	var uses: Dictionary = mark.get("uses", {})
-	var parts: Array[String] = []
-	for j in effects.size():
-		var limit := int(effects[j].get("limit", 0))
-		if limit > 0:
-			parts.append("%d/%d" % [maxi(0, limit - int(uses.get(j, 0))), limit])
-	if parts.is_empty():
-		return ""
-	return ", ".join(parts)
+func get_mark_remaining(_mark: Dictionary) -> String:
+	return ""
 
 
 func _roll_d6() -> int:
