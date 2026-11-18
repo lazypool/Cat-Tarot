@@ -58,7 +58,17 @@ func _ready() -> void:
 	var cost_screen: Vector2 = main.camera.unproject_position(dice._cost_sprite.global_position)
 	check(absf(cost_screen.x - dice_screen.x) < 8.0, "roll cost is centered above the die")
 	check(dice._cost_label.get_theme_font_size("normal_font_size") >= 44, "roll cost font is large")
-	check_eq(main._slot_cards[0]._format_delta_text("Passion +1, Comfort -1"), "Passion + 1, Comfort < 1", "effect text spaces deltas and uses <")
+	check_eq(main._slot_cards[0]._format_delta_text("Passion +1, Comfort -1"), "Passion + 1, Comfort - 1", "effect text spaces deltas and uses minus")
+	var font := UiFonts.get_font()
+	check(font != null, "tiered UI font loads")
+	if font != null:
+		check(font.fallbacks.size() >= 2, "tiered UI font attaches Lemi and Yozai fallbacks")
+		for codepoint in [0x002D, 0x0060, 0x007C, 0x2192, 0x2264, 0x2265, 0x732B, 0x73CF, 0x74A8]:
+			check(font.has_char(codepoint), "font chain supports U+%04X" % codepoint)
+	var slot0_card: Card3D = main._slot_cards[0]
+	var effect_width: float = float(slot0_card._effect_viewport.size.x) * slot0_card._effect_sprite.pixel_size
+	check(effect_width < main.CARD_SPACING, "card effect label width fits within slot spacing")
+	check(slot0_card._prevent_orphan_wrap("Comfort - 1.").contains("-\u00A01"), "sign and number glue with non-breaking space")
 
 	# The die works without selecting anything and updates the whole field.
 	GameManager.debug_force_rolls([4])
@@ -74,7 +84,7 @@ func _ready() -> void:
 	check_eq(int(GameManager.stats["curiosity"]), 3, "die 4 lowers curiosity")
 	check_eq(int(GameManager.stats["comfort"]), 5, "die 4 raises comfort")
 	check(dice._cost_label.text.contains("+ 1"), "die cost label shows the gain")
-	check(dice._cost_label.text.contains("< 1"), "die cost label shows the loss")
+	check(dice._cost_label.text.contains("- 1"), "die cost label shows the loss")
 	for card in main._slot_cards:
 		check(card._action_root == null or not card._action_root.visible, "card actions stay hidden without selection")
 
@@ -88,7 +98,7 @@ func _ready() -> void:
 	check(selected_card._reject_sprite.get_parent() == selected_card._action_root, "refuse icon is part of the card")
 	check(selected_card._accept_label.text.contains("[img="), "accept effects use stat icons")
 	check(selected_card._reject_label.text.contains("[img="), "refuse effects use stat icons")
-	check(selected_card._delta_bbcode(-1).contains("< 1"), "negative effect renders as less-than with a space")
+	check(selected_card._delta_bbcode(-1).contains("- 1"), "negative effect renders as minus with a space")
 	check(selected_card._delta_bbcode(1).contains("+ 1"), "positive effect has a space after plus")
 	var all_text: String = selected_card._actions_bbcode([{"type": "all", "delta": 1}])
 	check_eq(all_text.count("[img="), 4, "all-stat effect shows four icons")
@@ -124,12 +134,20 @@ func _ready() -> void:
 		card._on_mouse_exited()
 		check(card.effect_text == "", "hand hover effect clears")
 
+	var zh_tip: String = (ui.stat_boxes["passion"] as Control).tooltip_text
+	var zh_hand_text: String = main._hand_cards[0].hover_effect_text if not main._hand_cards.is_empty() else ""
 	Loc.toggle_language()
 	await get_tree().process_frame
 	check_eq(Loc.language, "en", "language toggled to English")
+	check_eq((ui.stat_boxes["passion"] as Control).tooltip_text, Loc.stat_name("passion"), "stat tooltip updates on language toggle")
+	if not main._hand_cards.is_empty():
+		check(main._hand_cards[0].hover_effect_text != zh_hand_text, "hand card hover text updates on language toggle")
 	Loc.toggle_language()
 	await get_tree().process_frame
 	check_eq(Loc.language, "zh", "language toggled back")
+	check_eq((ui.stat_boxes["passion"] as Control).tooltip_text, zh_tip, "stat tooltip restores zh text")
+	if not main._hand_cards.is_empty():
+		check_eq(main._hand_cards[0].hover_effect_text, zh_hand_text, "hand card hover text restores zh text")
 
 	# Full hand: choose the replacement directly from the 3D hand.
 	GameManager.new_game(99)

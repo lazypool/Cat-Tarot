@@ -29,6 +29,7 @@ const STAT_COLORS := {
 var root: Control
 var stat_values: Dictionary = {}
 var stat_fills: Dictionary = {}
+var stat_boxes: Dictionary = {}
 
 
 func _ready() -> void:
@@ -44,12 +45,7 @@ func _build_ui() -> void:
 	root.name = "UIRoot"
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var cute_font := load("res://assets/fonts/lemi_zhixia_qianfeng.ttf") as Font
-	if cute_font != null:
-		var theme := Theme.new()
-		theme.default_font = cute_font
-		theme.default_font_size = 16
-		root.theme = theme
+	root.theme = UiFonts.build_ui_theme(UiFonts.SIZE_HUD)
 	add_child(root)
 
 	var top_bar := _panel()
@@ -75,13 +71,14 @@ func _add_stat_widget(parent: HBoxContainer, key: String) -> void:
 	var box := HBoxContainer.new()
 	box.add_theme_constant_override("separation", 4)
 	box.tooltip_text = Loc.stat_name(key)
+	stat_boxes[key] = box
 	parent.add_child(box)
 	box.add_child(_icon(STAT_ICONS[key], 20, STAT_COLORS[key]))
 	var value_box := VBoxContainer.new()
 	value_box.add_theme_constant_override("separation", 0)
 	box.add_child(value_box)
 	var value := Label.new()
-	value.add_theme_font_size_override("font_size", 16)
+	value.add_theme_font_size_override("font_size", UiFonts.SIZE_HUD)
 	value.add_theme_color_override("font_color", C_TEXT)
 	value_box.add_child(value)
 	var bar := Control.new()
@@ -134,6 +131,8 @@ func _refresh() -> void:
 
 func _refresh_stats() -> void:
 	for key in STAT_ORDER:
+		if stat_boxes.has(key):
+			(stat_boxes[key] as Control).tooltip_text = Loc.stat_name(key)
 		var value := int(GameManager.stats[key])
 		stat_values[key].text = str(value)
 		var color: Color = C_DANGER if value <= 1 or value >= 9 else STAT_COLORS[key]

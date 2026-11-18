@@ -110,7 +110,7 @@ func set_effect_text(text: String) -> void:
 			_effect_sprite.visible = false
 		return
 	_ensure_effect_display()
-	_effect_label.text = _replace_stat_words(text)
+	_effect_label.text = _prevent_orphan_wrap(_replace_stat_words(text))
 	_effect_sprite.visible = true
 
 
@@ -118,7 +118,7 @@ func _ensure_effect_display() -> void:
 	if _effect_sprite != null:
 		return
 	_effect_viewport = SubViewport.new()
-	_effect_viewport.size = Vector2i(560, 140)
+	_effect_viewport.size = Vector2i(640, 176)
 	_effect_viewport.transparent_bg = true
 	_effect_viewport.gui_disable_input = true
 	_effect_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -129,24 +129,32 @@ func _ensure_effect_display() -> void:
 	_effect_label.scroll_active = false
 	_effect_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_effect_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_effect_label.add_theme_font_override("normal_font", load("res://assets/fonts/lemi_zhixia_qianfeng.ttf") as Font)
-	_effect_label.add_theme_font_size_override("normal_font_size", 34)
-	_effect_label.add_theme_color_override("default_color", Color(0.27, 0.18, 0.12, 1.0))
-	_effect_label.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+	UiFonts.apply_richtext_tier(_effect_label, UiFonts.SIZE_CARD_EFFECT)
 	_effect_viewport.add_child(_effect_label)
 	_effect_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_effect_sprite = Sprite3D.new()
 	_effect_sprite.texture = _effect_viewport.get_texture()
-	_effect_sprite.pixel_size = 0.0035
-	_effect_sprite.position = Vector3(0.0, 1.48, 0.03)
+	_effect_sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	_effect_sprite.pixel_size = 0.00285
+	_effect_sprite.position = Vector3(0.0, 1.505, 0.03)
 	_effect_sprite.visible = false
 	add_child(_effect_sprite)
+
+
+func _prevent_orphan_wrap(bbcode: String) -> String:
+	return (
+		bbcode
+		.replace("+ ", "+\u00A0")
+		.replace("- ", "-\u00A0")
+		.replace("<= ", "<=\u00A0")
+		.replace(">= ", ">=\u00A0")
+	)
 
 
 func _replace_stat_words(text: String) -> String:
 	var result := text
 	for entry in STAT_WORD_ICONS:
-		result = result.replace(str(entry[0]), "[img=30x30]%s[/img]" % str(entry[1]))
+		result = result.replace(str(entry[0]), "[img=32x32]%s[/img]" % str(entry[1]))
 	return _format_delta_text(result)
 
 
@@ -163,7 +171,7 @@ func _format_delta_text(text: String) -> String:
 				continue
 		result += text.substr(last, start - last)
 		var number := m.get_string(2)
-		result += ("+ " if m.get_string(1) == "+" else "< ") + number
+		result += ("+ " if m.get_string(1) == "+" else "- ") + number
 		last = m.get_end()
 	result += text.substr(last)
 	return result
@@ -209,10 +217,7 @@ func _make_action_preview(pos: Vector3) -> RichTextLabel:
 	label.fit_content = false
 	label.scroll_active = false
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	label.add_theme_font_override("normal_font", load("res://assets/fonts/lemi_zhixia_qianfeng.ttf") as Font)
-	label.add_theme_font_size_override("normal_font_size", 40)
-	label.add_theme_color_override("default_color", Color(0.27, 0.18, 0.12, 1.0))
-	label.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+	UiFonts.apply_richtext_tier(label, UiFonts.SIZE_CARD_ACTION)
 	viewport.add_child(label)
 	label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var sprite := Sprite3D.new()
@@ -288,7 +293,7 @@ func _actions_bbcode(actions: Array) -> String:
 
 func _delta_bbcode(delta: int) -> String:
 	if delta < 0:
-		return "[color=#AD383D]< %d[/color]" % absi(delta)
+		return "[color=#AD383D]- %d[/color]" % absi(delta)
 	return "[color=#3D854A]+ %d[/color]" % delta
 
 

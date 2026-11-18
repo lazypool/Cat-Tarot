@@ -56,8 +56,8 @@ All four stats start at **4**. The safe range is **1-9**. If any stat becomes
 
 The top bar contains only the cat avatar and the four stats, each with a value
 and a small bar. Values near a boundary are highlighted. There is no progress
-counter, phase label, or language toggle. A `-1` effect is applied as a
-minus-one delta; it is not a `< 1` condition and is not clamped to a minimum of 1.
+counter, phase label, or language toggle. Negative stat deltas are displayed as `- 1`
+(minus-one delta) and are never clamped to a minimum of 1.
 
 Die-face costs:
 
@@ -77,7 +77,7 @@ Die-face costs:
   accepting/refusing.
 - Click the 3D die in the bottom-right to roll. There is no roll button and no
   need to select a card first. Each face has its own tradeoff: one stat `+1` and
-  one stat `-1`. The current face's two colored stat icons (`+ 1` / `< 1`) are
+  one stat `-1`. The current face's two colored stat icons (`+ 1` / `- 1`) are
   rendered as a large flat label on the table directly centered above the die,
   as part of it. The die result applies to every field card at once.
 - Every field card is always UPRIGHT or REVERSED, including cards that are not
@@ -90,7 +90,7 @@ Die-face costs:
   effect previews sit just below the card surface and move with it. Hovering
   tints the tick green or the cross red, with no hover text. The effect text is
   slightly larger than the mark description, uses colored stat icons, and writes
-  signed values with a space (`+ 1` / `< 1`).
+  signed values with a space (`+ 1` / `- 1`).
 - The tick applies the selected card's accept row, then checks death and gains
   the mark. The cross applies its refuse row, checks death, and gives no mark.
 - Marks are shown as a large, upright 3D card fan along the bottom edge. The
@@ -100,7 +100,7 @@ Die-face costs:
   mouse tooltip, and there is no in-game log. Hovering a hand card shows its
   effect text at the top, just like a table card.
 - Each table card writes its mark effect at the top of the card, with stat words
-  replaced by their colored icons and signed values spaced as `+ 1` / `< 1`;
+  replaced by their colored icons and signed values spaced as `+ 1` / `- 1`;
   hand cards stay clean until hovered.
 
 ## Linear 21-choice flow
@@ -185,7 +185,12 @@ panel appears; the tabletop restart button lights up with a pulsing halo.
   file names preserved. The original 1664x2880 PNGs are archived outside git in
   the `assets-source-v1` GitHub Release.
 - Icons are from the supplied `no-padding` pack in `assets/icons/`.
-- The Chinese UI font is `assets/fonts/lemi_zhixia_qianfeng.ttf`.
+- The UI and 3D label typography use a tiered handwriting stack managed by
+  `scripts/ui_fonts.gd`: `assets/fonts/yozai_latin_symbols.ttf` (Tier 1 Latin,
+  digits, `-`, `→`, math symbols; SIL OFL 1.1 subset),
+  `assets/fonts/lemi_zhixia_qianfeng.ttf` (Tier 2 primary Chinese characters and
+  punctuation), and `assets/fonts/yozai_regular.ttf` (Tier 3 full Yozai CJK and
+  symbol fallback, SIL OFL 1.1).
 - The 3D die is exported from the supplied `DiceLowPoly.blend` to
   `assets/models/dice_low_poly.glb`.
 - Card and dice sounds are under `assets/audio/sfx/`, converted from the supplied
@@ -250,7 +255,7 @@ Cat-Tarot/
 |-- assets/
 |   |-- cards/                 optimized WebP card art
 |   |-- icons/                 supplied no-padding icons
-|   |-- fonts/                 cute Chinese UI font
+|   |-- fonts/                 tiered Lemi + Yozai handwriting fonts and OFL license
 |   |-- models/                GLB die + original blend source
 |   |-- audio/
 |   |   |-- sfx/               card, deck, and dice WAV effects
@@ -269,6 +274,7 @@ Cat-Tarot/
 |   |-- card_3d.gd             texture, hover, selection, reversal, effect/action overlays
 |   |-- dice_3d.gd             d6 face and tumble animation
 |   |-- deck_3d.gd             stacking, height, and drawn-card positions
+|   |-- ui_fonts.gd            tiered font fallback stack and typographic scale
 |   |-- ui_manager.gd          cat avatar + four-stat HUD
 |   |-- restart_button_3d.gd   tabletop restart button and game-over halo
 |   |-- audio_manager.gd       Music/SFX buses, one-shot pool, looping BGM

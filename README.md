@@ -53,6 +53,9 @@ godot --path .
 
 Debug seed: `godot --path . -- --seed=1234`.
 
+If you pull new assets or scripts and see `No loader found` / `Identifier "..." not declared`,
+clear the cache and re-import: `rm -rf .godot && godot --headless --path . --import`.
+
 Tests:
 
 ```bash
@@ -102,4 +105,6 @@ Never commit `assets/`, `assets.tar.gz` or `assets.zip`. No Git LFS. Every scrip
 
 - Read `AGENTS.md` first; it is identical in every game repo of this workspace.
 - Keep the PR title in Conventional Commits form and follow `.github/pull_request_template.md`.
+- If your PR changes assets and you lack write access to this repo, publish the bundle to **your
+  fork's** Release tagged `assets` and link it in the PR; the maintainer re-publishes it here.
 - AI-assisted forks/PRs are welcome under the same conventions.

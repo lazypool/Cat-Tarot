@@ -55,10 +55,7 @@ func _create_cost_label() -> void:
 	_cost_label.fit_content = false
 	_cost_label.scroll_active = false
 	_cost_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_cost_label.add_theme_font_override("normal_font", load("res://assets/fonts/lemi_zhixia_qianfeng.ttf") as Font)
-	_cost_label.add_theme_font_size_override("normal_font_size", 48)
-	_cost_label.add_theme_color_override("default_color", Color(0.27, 0.18, 0.12, 1.0))
-	_cost_label.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+	UiFonts.apply_richtext_tier(_cost_label, UiFonts.SIZE_DIE_COST)
 	viewport.add_child(_cost_label)
 	_cost_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_cost_sprite = Sprite3D.new()
@@ -76,7 +73,7 @@ func _update_cost_label(value: int) -> void:
 	var cost := GameManager.get_die_cost(value)
 	var plus_stat := str(cost["plus"])
 	var minus_stat := str(cost["minus"])
-	_cost_label.text = "[center][img=34x34]%s[/img][color=#3D854A]+ 1[/color]  [img=34x34]%s[/img][color=#AD383D]< 1[/color][/center]" % [
+	_cost_label.text = "[center][img=34x34]%s[/img][color=#3D854A]+ 1[/color]  [img=34x34]%s[/img][color=#AD383D]- 1[/color][/center]" % [
 		STAT_ICONS[plus_stat],
 		STAT_ICONS[minus_stat],
 	]

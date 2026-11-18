@@ -447,6 +447,15 @@ func _on_language_changed() -> void:
 		if card != null and is_instance_valid(card) and runtime != null:
 			card.refresh_language()
 			card.set_effect_text(_effect_text(int(runtime["card_id"]), str(runtime["orientation"])))
+	for i in _hand_cards.size():
+		var hand_card: Card3D = _hand_cards[i]
+		var mark = GameManager.marks[i] if i < GameManager.marks.size() else null
+		if hand_card != null and is_instance_valid(hand_card) and mark != null:
+			var text := _effect_text(int(mark["card_id"]), str(mark["orientation"]))
+			hand_card.refresh_language()
+			hand_card.set_hover_effect_text(text)
+			if hand_card.hovered:
+				hand_card.set_effect_text(text)
 
 
 func _on_state_changed() -> void:

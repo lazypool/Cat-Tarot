@@ -25,16 +25,27 @@ structure and keep **gameplay out of it** — rules, controls, walkthroughs and 
 
 ## Assets: download them first (after clone)
 
-`assets/` is **not** in Git. Restore it before running the project, tests or the editor:
+`assets/` is **not** in Git. Restore it, then import once before running the project, tests or the
+editor:
 
 ```bash
 tools/fetch-assets.sh                        # Linux / macOS / Git Bash
 powershell -File tools\fetch-assets.ps1      # Windows PowerShell
+godot --headless --path . --import           # rebuild .import sidecars + .godot/ cache
 ```
 
 The script uses a local `assets.tar.gz` / `assets.zip` if present, otherwise downloads the two
 archives from this repo's GitHub **Release tagged `assets`**, extracts to `assets/`, and verifies
 the committed `assets.sha256`. Requires Python 3.8+; `gh` only if the release is private.
+
+The bundle ships raw files only - `.import` sidecars and the `.godot/` cache are per-machine,
+git-ignored, and regenerated on import. If you pulled new code that adds a `class_name` and see
+`Identifier "..." not declared` or `No loader found for resource ...`, clear the stale cache and
+re-import:
+
+```bash
+rm -rf .godot && godot --headless --path . --import
+```
 
 Manual alternative - download from the `assets` release and extract at the repo root:
 
@@ -47,7 +58,7 @@ If the repo has no GitHub remote yet, only a local bundle can be used - never de
 
 ## Assets: change or add them (how to contribute)
 
-Prerequisites: Python 3.8+; `gh` authenticated and a GitHub `origin` remote to publish.
+Prerequisites: Python 3.8+; `gh` authenticated; a GitHub remote to publish to.
 
 1. Edit or add files under `assets/` (keep third-party terms in `assets/LICENSES.md`).
 2. Rebuild both archives and the stamp:
@@ -58,13 +69,15 @@ Prerequisites: Python 3.8+; `gh` authenticated and a GitHub `origin` remote to p
    ```
 
    This writes `assets.tar.gz`, `assets.zip` and the new `assets.sha256`.
-3. Publish both archives to the `assets` Release (same tag, `--clobber`):
+3. Publish both archives to a GitHub Release tagged `assets` (same tag, `--clobber`):
 
    ```bash
    tools/push-assets.sh
    powershell -File tools\push-assets.ps1
    ```
 
+   `tools/assets.py push` reads the `origin` remote, so it publishes to whichever repo `origin`
+   points at.
 4. Commit **only** the stamp, with a complete Conventional Commit (body + sign-off, see below):
 
    ```bash
@@ -73,6 +86,36 @@ Prerequisites: Python 3.8+; `gh` authenticated and a GitHub `origin` remote to p
    ```
 
 5. Verify: `python tools/assets.py check` must pass.
+
+### Contributor with write access (maintainer, or a branch in the repo)
+
+Step 3 above publishes straight to the upstream repo's `assets` Release. Nothing more to do.
+
+### Contributor opening a PR from a fork (the normal case for agents)
+
+You cannot publish to the upstream repo's Release (no write access). Instead:
+
+1. Keep `origin` pointing at **your fork** (the fork default), then run `tools/push-assets.sh` — it
+   publishes both bundles to **your fork's** Release tagged `assets`.
+2. Commit **only** `assets.sha256`, open the PR, and **state in the PR body which fork + Release
+   holds the bundle**, e.g. `bundle: https://github.com/<you>/<repo>/releases/tag/assets`.
+3. Never bump `assets.sha256` without publishing the bundle somewhere the maintainer can fetch. A
+   PR whose stamp has no matching bundle is **unmergeable**: the maintainer cannot verify the hash
+   or rebuild the game.
+
+### Merging a PR that changed assets (maintainer)
+
+1. Download the contributor's bundle from their fork Release and extract it at the repo root:
+
+   ```bash
+   gh release download assets -R <fork-owner>/<repo> -p 'assets.tar.gz' --clobber -D .
+   tar -xzf assets.tar.gz
+   ```
+
+2. `tools/pack-assets.sh` — the recomputed `assets.sha256` **must equal the PR's stamp**; a
+   mismatch means the bundle does not match the code.
+3. `tools/push-assets.sh` to publish to the **upstream** `assets` Release (you have write access).
+4. `python tools/assets.py check`, run the tests, then merge.
 
 Hard rules:
 
